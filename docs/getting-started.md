@@ -13,6 +13,16 @@ bash install.sh
 source ~/.bashrc   # or ~/.zshrc
 ```
 
+After `source ~/.bashrc` or `source ~/.zshrc`, the wrapper functions and completion are available in your current shell.
+
+Check that the wrapper is active:
+
+```bash
+type codex
+type codex-accounts
+type codexpm
+```
+
 ## First Setup
 
 If you already have a working `~/.codex`, import it as a managed account:
@@ -60,6 +70,8 @@ codex-projects status
 ## Quick Commands
 
 ```bash
+codex-accounts --help
+codex-accounts help
 codex-accounts next
 codex-projects history
 codex-projects handoff --to-account backup --reason "rate limit"

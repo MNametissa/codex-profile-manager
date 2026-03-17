@@ -23,6 +23,13 @@ bash install.sh
 source ~/.bashrc   # ou ~/.zshrc
 ```
 
+After reloading your shell, the wrapper exposes shell functions and completion for:
+
+- `codex`
+- `codex-accounts`
+- `codex-projects`
+- `codexpm`
+
 ## Documentation
 
 - `codexpm docs`
@@ -38,6 +45,8 @@ source ~/.bashrc   # ou ~/.zshrc
 ## Quickstart
 
 ```bash
+codex-accounts --help
+codex-accounts help
 codex-accounts list
 codex-accounts info backup --json
 codex-accounts add backup

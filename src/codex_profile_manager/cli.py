@@ -323,7 +323,7 @@ def main() -> None:
         app()
     except (FileNotFoundError, FileExistsError, ValueError, RuntimeError) as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        raise typer.Exit(1) from exc
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
