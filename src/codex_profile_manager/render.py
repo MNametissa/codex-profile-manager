@@ -3,10 +3,11 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from rich.console import Console
+from rich.console import Console, Group
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
 
 console = Console()
@@ -143,3 +144,83 @@ def render_docs_index(topics: list[dict[str, str]]) -> None:
 def render_doc(payload: dict[str, Any]) -> None:
     console.print(Panel(payload["path"], title=f"Docs: {payload['topic']}"))
     console.print(Markdown(payload["content"]))
+
+
+def _payment_style(days_until_payment: int | None) -> str:
+    if days_until_payment is None:
+        return "black on grey66"
+    if days_until_payment < 0:
+        return "bold white on #4a0e12"
+    if days_until_payment <= 1:
+        return "bold white on #6b1117"
+    if days_until_payment <= 3:
+        return "bold white on #8f1d14"
+    if days_until_payment <= 7:
+        return "bold black on #d97706"
+    return "bold white on #1f4b99"
+
+
+def _usage_style(state: str, used_percent: float | None) -> str:
+    if state == "unauthenticated":
+        return "bold black on #facc15"
+    if state == "likely-limited":
+        return "bold white on #7f1d1d"
+    if isinstance(used_percent, (int, float)):
+        if used_percent >= 95:
+            return "bold white on #991b1b"
+        if used_percent >= 85:
+            return "bold black on #f97316"
+        if used_percent >= 70:
+            return "bold black on #facc15"
+    return "bold white on #0f766e"
+
+
+def _status_label(label: str, value: str, style: str) -> Text:
+    text = Text()
+    text.append(f" {label} ", style="bold white on black")
+    text.append(f" {value} ", style=style)
+    return text
+
+
+def render_launch_banner(payload: dict[str, Any]) -> None:
+    active_profile = payload.get("active_profile") or "-"
+    next_payment = payload.get("next_payment_at") or ""
+    days_until_payment = payload.get("days_until_payment")
+    used_percent = payload.get("used_percent")
+    resets_at = payload.get("resets_at") or "unknown"
+    state = payload.get("state") or "unknown"
+    plan_type = payload.get("plan_type") or "unknown"
+
+    if next_payment:
+        if days_until_payment is None:
+            renewal_text = next_payment
+        elif days_until_payment < 0:
+            renewal_text = f"{next_payment} | overdue by {abs(days_until_payment)}d"
+        elif days_until_payment == 0:
+            renewal_text = f"{next_payment} | due today"
+        else:
+            renewal_text = f"{next_payment} | in {days_until_payment}d"
+    else:
+        renewal_text = "not set"
+
+    if isinstance(used_percent, (int, float)):
+        usage_text = f"{used_percent:.0f}%"
+    else:
+        usage_text = state
+
+    header = Text()
+    header.append_text(_status_label("ACCOUNT", str(payload["account"]), "bold white on #0f172a"))
+    header.append(" ")
+    header.append_text(_status_label("PROFILE", active_profile, "bold white on #1d4ed8"))
+    header.append(" ")
+    header.append_text(_status_label("PLAN", str(plan_type), "bold white on #3f3f46"))
+
+    metrics = Text()
+    metrics.append_text(_status_label("RENEWAL", renewal_text, _payment_style(days_until_payment)))
+    metrics.append(" ")
+    metrics.append_text(_status_label("USAGE", usage_text, _usage_style(state, used_percent)))
+    metrics.append(" ")
+    metrics.append_text(_status_label("RESET", str(resets_at), "bold white on #334155"))
+
+    subtitle = "manager-derived billing date and local session usage"
+    console.print(Panel(Group(header, metrics), title="Codex Control Strip", subtitle=subtitle, border_style="bright_blue", padding=(0, 1)))

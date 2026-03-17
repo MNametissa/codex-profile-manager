@@ -8,6 +8,7 @@ Codex Profile Manager ajoute une couche multi-comptes a `codex` en utilisant `CO
 - profil de configuration Codex par defaut par compte
 - wrapper `codex -u <account>` sans casser les commandes natives
 - CLI Typer avec rendu tableau et sorties `--json`
+- control strip colore avant lancement pour renewal et pression d'usage
 - ledger transverse par projet pour conserver une chronologie commune
 - handoff entre comptes avec note de reprise
 - suivi local des etats d'auth et des signaux de limite d'usage

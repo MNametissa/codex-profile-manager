@@ -80,3 +80,9 @@ This data is manager-owned metadata. It is not fetched automatically from OpenAI
 ## Important Limitation
 
 The manager can display renewal information before launching `codex`, but it does not reliably inject arbitrary data into the native Codex status line. The native status line appears to support predefined fields only.
+
+Instead, the wrapper prints a manager-owned control strip before `codex` starts. It highlights:
+
+- the selected account and effective profile
+- the stored renewal date with stronger colors as payment gets close
+- local usage pressure from recent session data (`used_percent`, `resets_at`, `plan_type`)

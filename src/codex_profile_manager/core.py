@@ -12,6 +12,8 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
+from .render import render_launch_banner
+
 
 DOC_TOPICS = {
     "index": ("Documentation index", "docs/README.md"),
@@ -205,6 +207,15 @@ def set_account_billing(name: str, next_payment_at: str, cycle: str, source: str
     set_meta_value(name, "billing_next_payment_at", next_payment_at)
     set_meta_value(name, "billing_cycle", cycle)
     set_meta_value(name, "billing_source", source)
+
+
+def days_until_payment(name: str, today: date | None = None) -> int | None:
+    next_payment = account_next_payment_at(name)
+    if not next_payment:
+        return None
+    target = date.fromisoformat(next_payment)
+    baseline = today or date.today()
+    return (target - baseline).days
 
 
 def auth_json_path(name: str) -> Path:
@@ -768,17 +779,26 @@ def run_codex(account: str, codex_args: list[str]) -> int:
         raise FileNotFoundError(f"Account '{account}' not found")
 
     ensure_account_home(account)
-    active_profile = account_default_profile(account)
+    account_info = collect_account_info(account)
+    active_profile = account_info.default_profile
     args = list(codex_args)
     if active_profile and not has_profile_arg(args):
         args = ["-p", active_profile, *args]
 
-    print(f"Using Codex account: {account}")
-    if active_profile:
-        print(f"Using config profile: {active_profile}")
-    next_payment = account_next_payment_at(account)
-    if next_payment:
-        print(f"Billing renews on: {next_payment}")
+    render_launch_banner(
+        {
+            "account": account,
+            "active_profile": active_profile,
+            "state": account_info.state,
+            "used_percent": account_info.used_percent,
+            "resets_at": account_info.resets_at,
+            "plan_type": account_info.plan_type,
+            "next_payment_at": account_info.next_payment_at,
+            "billing_cycle": account_info.billing_cycle,
+            "billing_source": account_info.billing_source,
+            "days_until_payment": days_until_payment(account),
+        }
+    )
 
     track_project = is_trackable_command(args)
     root: Path | None = None
