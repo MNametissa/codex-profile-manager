@@ -22,6 +22,15 @@ bash install.sh
 source ~/.bashrc   # ou ~/.zshrc
 ```
 
+## Documentation
+
+- [Documentation Index](./docs/README.md)
+- [Getting Started](./docs/getting-started.md)
+- [Accounts Guide](./docs/accounts.md)
+- [Projects Guide](./docs/projects.md)
+- [Replication and Operations](./docs/replication-and-operations.md)
+- [Architecture](./docs/architecture.md)
+
 ## Quickstart
 
 ```bash
