@@ -4,11 +4,11 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-from rich.console import Console, Group
+import typer
+from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
 
 
 console = Console()
@@ -147,40 +147,43 @@ def render_doc(payload: dict[str, Any]) -> None:
     console.print(Markdown(payload["content"]))
 
 
-def _payment_style(days_until_payment: int | None) -> str:
+def _payment_style(days_until_payment: int | None) -> dict[str, Any]:
     if days_until_payment is None:
-        return "black on grey66"
+        return {"fg": typer.colors.WHITE, "dim": True}
     if days_until_payment < 0:
-        return "bold white on #4a0e12"
+        return {"fg": typer.colors.WHITE, "bg": typer.colors.RED, "bold": True}
     if days_until_payment <= 1:
-        return "bold white on #6b1117"
+        return {"fg": typer.colors.WHITE, "bg": typer.colors.RED, "bold": True}
     if days_until_payment <= 3:
-        return "bold white on #8f1d14"
+        return {"fg": typer.colors.RED, "bold": True}
     if days_until_payment <= 7:
-        return "bold black on #d97706"
-    return "bold white on #1f4b99"
+        return {"fg": typer.colors.YELLOW, "bold": True}
+    return {"fg": typer.colors.BLUE, "bold": True}
 
 
-def _usage_style(state: str, used_percent: float | None) -> str:
+def _usage_style(state: str, used_percent: float | None) -> dict[str, Any]:
     if state == "unauthenticated":
-        return "bold black on #facc15"
+        return {"fg": typer.colors.BLACK, "bg": typer.colors.YELLOW, "bold": True}
     if state == "likely-limited":
-        return "bold white on #7f1d1d"
+        return {"fg": typer.colors.WHITE, "bg": typer.colors.RED, "bold": True}
     if isinstance(used_percent, (int, float)):
         if used_percent >= 95:
-            return "bold white on #991b1b"
+            return {"fg": typer.colors.WHITE, "bg": typer.colors.RED, "bold": True}
         if used_percent >= 85:
-            return "bold black on #f97316"
+            return {"fg": typer.colors.BLACK, "bg": typer.colors.YELLOW, "bold": True}
         if used_percent >= 70:
-            return "bold black on #facc15"
-    return "bold white on #0f766e"
+            return {"fg": typer.colors.YELLOW, "bold": True}
+    return {"fg": typer.colors.GREEN, "bold": True}
 
 
-def _status_label(label: str, value: str, style: str) -> Text:
-    text = Text()
-    text.append(f" {label} ", style="bold white on black")
-    text.append(f" {value} ", style=style)
-    return text
+def _style_fragment(value: str, **styles: Any) -> str:
+    return typer.style(value, **styles)
+
+
+def _status_label(label: str, value: str, value_style: dict[str, Any]) -> str:
+    label_text = _style_fragment(f" {label} ", fg=typer.colors.WHITE, bg=typer.colors.BLACK, bold=True)
+    value_text = _style_fragment(f" {value} ", **value_style)
+    return f"{label_text}{value_text}"
 
 
 def _format_reset_time(raw_value: Any) -> str:
@@ -240,19 +243,22 @@ def render_launch_banner(payload: dict[str, Any]) -> None:
     else:
         usage_text = state
 
-    header = Text()
-    header.append_text(_status_label("ACCOUNT", str(payload["account"]), "bold white on #0f172a"))
-    header.append(" ")
-    header.append_text(_status_label("PROFILE", active_profile, "bold white on #1d4ed8"))
-    header.append(" ")
-    header.append_text(_status_label("PLAN", str(plan_type), "bold white on #3f3f46"))
+    header = " ".join(
+        [
+            _status_label("ACCOUNT", str(payload["account"]), {"fg": typer.colors.WHITE, "bg": typer.colors.BLUE, "bold": True}),
+            _status_label("PROFILE", active_profile, {"fg": typer.colors.WHITE, "bg": typer.colors.CYAN, "bold": True}),
+            _status_label("PLAN", str(plan_type), {"fg": typer.colors.WHITE, "bg": typer.colors.MAGENTA, "bold": True}),
+        ]
+    )
+    metrics = " ".join(
+        [
+            _status_label("RENEWAL", renewal_text, _payment_style(days_until_payment)),
+            _status_label("USAGE", usage_text, _usage_style(state, used_percent)),
+            _status_label("RESET", str(resets_at), {"fg": typer.colors.CYAN, "bold": True}),
+        ]
+    )
 
-    metrics = Text()
-    metrics.append_text(_status_label("RENEWAL", renewal_text, _payment_style(days_until_payment)))
-    metrics.append(" ")
-    metrics.append_text(_status_label("USAGE", usage_text, _usage_style(state, used_percent)))
-    metrics.append(" ")
-    metrics.append_text(_status_label("RESET", str(resets_at), "bold white on #334155"))
-
-    subtitle = "manager-derived billing date and local session usage"
-    console.print(Panel(Group(header, metrics), title="Codex Control Strip", subtitle=subtitle, border_style="bright_blue", padding=(0, 1)))
+    typer.echo(_style_fragment("◆ CODEX CONTROL STRIP", fg=typer.colors.BLUE, bold=True))
+    typer.echo(header)
+    typer.echo(metrics)
+    typer.echo(_style_fragment("manager-derived billing date and local session usage", fg=typer.colors.WHITE, dim=True))
