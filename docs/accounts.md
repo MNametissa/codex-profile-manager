@@ -86,3 +86,4 @@ Instead, the wrapper prints a manager-owned control strip before `codex` starts.
 - the selected account and effective profile
 - the stored renewal date with stronger colors as payment gets close
 - local usage pressure from recent session data (`used_percent`, `resets_at`, `plan_type`)
+- a human-readable reset hint such as `in 6h` instead of a raw ISO timestamp

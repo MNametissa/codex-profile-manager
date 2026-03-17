@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from typing import Any
 
 from rich.console import Console, Group
@@ -182,12 +183,43 @@ def _status_label(label: str, value: str, style: str) -> Text:
     return text
 
 
+def _format_reset_time(raw_value: Any) -> str:
+    if raw_value in ("", None):
+        return "unknown"
+    if not isinstance(raw_value, str):
+        return str(raw_value)
+
+    normalized = raw_value.replace("Z", "+00:00")
+    try:
+        reset_at = datetime.fromisoformat(normalized)
+    except ValueError:
+        return raw_value
+
+    if reset_at.tzinfo is None:
+        reset_at = reset_at.replace(tzinfo=UTC)
+
+    delta = reset_at - datetime.now(UTC)
+    seconds = int(delta.total_seconds())
+    if seconds <= -3600:
+        return f"{abs(seconds) // 3600}h ago"
+    if seconds < 0:
+        return "just passed"
+    if seconds < 3600:
+        minutes = max(1, seconds // 60)
+        return f"in {minutes}m"
+    if seconds < 86400:
+        hours = max(1, seconds // 3600)
+        return f"in {hours}h"
+    days = max(1, seconds // 86400)
+    return f"in {days}d"
+
+
 def render_launch_banner(payload: dict[str, Any]) -> None:
     active_profile = payload.get("active_profile") or "-"
     next_payment = payload.get("next_payment_at") or ""
     days_until_payment = payload.get("days_until_payment")
     used_percent = payload.get("used_percent")
-    resets_at = payload.get("resets_at") or "unknown"
+    resets_at = _format_reset_time(payload.get("resets_at"))
     state = payload.get("state") or "unknown"
     plan_type = payload.get("plan_type") or "unknown"
 
