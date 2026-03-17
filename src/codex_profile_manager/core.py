@@ -4,10 +4,11 @@ import hashlib
 import json
 import os
 import shutil
-import signal
 import subprocess
+import tarfile
+import tempfile
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -62,7 +63,19 @@ def ensure_account_home(name: str) -> None:
 
     meta_path = account_meta_path(name)
     if not meta_path.exists():
-        meta_path.write_text(json.dumps({"created_at": now_utc(), "default_profile": ""}, indent=2) + "\n")
+        meta_path.write_text(
+            json.dumps(
+                {
+                    "created_at": now_utc(),
+                    "default_profile": "",
+                    "billing_cycle": "",
+                    "billing_next_payment_at": "",
+                    "billing_source": "",
+                },
+                indent=2,
+            )
+            + "\n"
+        )
 
     config_path = account_home(name) / "config.toml"
     if not config_path.exists():
@@ -120,6 +133,28 @@ def get_meta_value(name: str, key: str, default: Any = "") -> Any:
 
 def account_default_profile(name: str) -> str:
     return str(get_meta_value(name, "default_profile", ""))
+
+
+def account_next_payment_at(name: str) -> str:
+    return str(get_meta_value(name, "billing_next_payment_at", ""))
+
+
+def account_billing_cycle(name: str) -> str:
+    return str(get_meta_value(name, "billing_cycle", ""))
+
+
+def account_billing_source(name: str) -> str:
+    return str(get_meta_value(name, "billing_source", ""))
+
+
+def set_account_billing(name: str, next_payment_at: str, cycle: str, source: str = "manual") -> None:
+    if not account_exists(name):
+        raise FileNotFoundError(f"Account '{name}' not found")
+    if next_payment_at:
+        date.fromisoformat(next_payment_at)
+    set_meta_value(name, "billing_next_payment_at", next_payment_at)
+    set_meta_value(name, "billing_cycle", cycle)
+    set_meta_value(name, "billing_source", source)
 
 
 def auth_json_path(name: str) -> Path:
@@ -203,6 +238,9 @@ class AccountInfo:
     resets_at: Any
     plan_type: Any
     home: str
+    next_payment_at: str
+    billing_cycle: str
+    billing_source: str
 
 
 def collect_account_info(name: str) -> AccountInfo:
@@ -221,6 +259,9 @@ def collect_account_info(name: str) -> AccountInfo:
         resets_at=rate["resets_at"],
         plan_type=rate["plan_type"],
         home=str(account_home(name)),
+        next_payment_at=account_next_payment_at(name),
+        billing_cycle=account_billing_cycle(name),
+        billing_source=account_billing_source(name),
     )
 
 
@@ -419,6 +460,124 @@ def tracked_projects_payload() -> list[dict[str, Any]]:
     return items
 
 
+def codex_version() -> str:
+    result = subprocess.run(["codex", "--version"], capture_output=True, text=True, check=False)
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def npm_version() -> str:
+    result = subprocess.run(["npm", "--version"], capture_output=True, text=True, check=False)
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def run_npm_install_codex(version: str = "latest") -> int:
+    package = "@openai/codex@latest" if version in {"", "latest"} else f"@openai/codex@{version}"
+    return subprocess.run(["npm", "install", "-g", package], check=False).returncode
+
+
+def run_npm_upgrade_codex(version: str = "latest") -> int:
+    return run_npm_install_codex(version)
+
+
+def build_snapshot_manifest(selected_accounts: list[str], include_auth: bool, include_projects: bool) -> dict[str, Any]:
+    return {
+        "created_at": now_utc(),
+        "manager_version": "0.1.0",
+        "codex_version": codex_version(),
+        "npm_version": npm_version(),
+        "accounts": selected_accounts,
+        "include_auth": include_auth,
+        "include_projects": include_projects,
+        "default_account": read_default_account(),
+    }
+
+
+def export_snapshot(output_path: str | Path, accounts: list[str] | None, include_auth: bool, include_projects: bool) -> Path:
+    ensure_state_dirs()
+    selected_accounts = accounts or list_accounts()
+    for account in selected_accounts:
+        if not account_exists(account):
+            raise FileNotFoundError(f"Account '{account}' not found")
+
+    output = Path(output_path).expanduser().resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+
+    with tempfile.TemporaryDirectory() as temp_dir_raw:
+        temp_dir = Path(temp_dir_raw)
+        root = temp_dir / "snapshot"
+        root.mkdir()
+
+        (root / "manifest.json").write_text(
+            json.dumps(build_snapshot_manifest(selected_accounts, include_auth, include_projects), indent=2, sort_keys=True) + "\n"
+        )
+
+        accounts_root = root / "accounts"
+        accounts_root.mkdir()
+        for account in selected_accounts:
+            destination = accounts_root / account
+            shutil.copytree(account_dir(account), destination, dirs_exist_ok=True)
+            if not include_auth:
+                (destination / "home" / "auth.json").unlink(missing_ok=True)
+
+        if default_account_file().exists():
+            shutil.copy2(default_account_file(), root / "default-account")
+
+        if include_projects and projects_dir().exists():
+            shutil.copytree(projects_dir(), root / "projects", dirs_exist_ok=True)
+
+        with tarfile.open(output, "w:gz") as archive:
+            archive.add(root, arcname="codex-profile-manager-snapshot")
+
+    return output
+
+
+def _safe_extract_tar(archive: tarfile.TarFile, destination: Path) -> None:
+    for member in archive.getmembers():
+        resolved = (destination / member.name).resolve()
+        if not str(resolved).startswith(str(destination.resolve())):
+            raise RuntimeError("Unsafe archive path detected")
+    archive.extractall(destination)
+
+
+def import_snapshot(archive_path: str | Path, overwrite: bool, import_projects: bool) -> dict[str, Any]:
+    archive_file = Path(archive_path).expanduser().resolve()
+    if not archive_file.exists():
+        raise FileNotFoundError(f"Snapshot '{archive_file}' not found")
+
+    ensure_state_dirs()
+    with tempfile.TemporaryDirectory() as temp_dir_raw:
+        temp_dir = Path(temp_dir_raw)
+        with tarfile.open(archive_file, "r:gz") as archive:
+            _safe_extract_tar(archive, temp_dir)
+
+        root = temp_dir / "codex-profile-manager-snapshot"
+        manifest = json.loads((root / "manifest.json").read_text())
+
+        imported_accounts: list[str] = []
+        accounts_root = root / "accounts"
+        if accounts_root.exists():
+            for source in sorted(accounts_root.iterdir()):
+                if not source.is_dir():
+                    continue
+                destination = account_dir(source.name)
+                if destination.exists():
+                    if not overwrite:
+                        continue
+                    shutil.rmtree(destination)
+                shutil.copytree(source, destination, dirs_exist_ok=True)
+                imported_accounts.append(source.name)
+
+        if (root / "default-account").exists() and (overwrite or not default_account_file().exists()):
+            shutil.copy2(root / "default-account", default_account_file())
+
+        imported_projects = False
+        if import_projects and (root / "projects").exists():
+            shutil.copytree(root / "projects", projects_dir(), dirs_exist_ok=True)
+            imported_projects = True
+
+    return {"manifest": manifest, "imported_accounts": imported_accounts, "imported_projects": imported_projects}
+
+
 def read_lock(root: Path) -> dict[str, Any] | None:
     path = project_lock_path(root)
     if not path.exists():
@@ -567,6 +726,9 @@ def run_codex(account: str, codex_args: list[str]) -> int:
     print(f"Using Codex account: {account}")
     if active_profile:
         print(f"Using config profile: {active_profile}")
+    next_payment = account_next_payment_at(account)
+    if next_payment:
+        print(f"Billing renews on: {next_payment}")
 
     track_project = is_trackable_command(args)
     root: Path | None = None

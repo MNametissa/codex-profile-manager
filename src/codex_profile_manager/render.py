@@ -46,7 +46,21 @@ def render_account_info(item: dict[str, Any]) -> None:
     table = Table(title=f"Account: {item['name']}")
     table.add_column("Field")
     table.add_column("Value")
-    for key in ["home", "is_default", "logged_in", "auth_mode", "default_profile", "last_refresh", "state", "used_percent", "resets_at", "plan_type"]:
+    for key in [
+        "home",
+        "is_default",
+        "logged_in",
+        "auth_mode",
+        "default_profile",
+        "last_refresh",
+        "state",
+        "used_percent",
+        "resets_at",
+        "plan_type",
+        "next_payment_at",
+        "billing_cycle",
+        "billing_source",
+    ]:
         value = item.get(key)
         table.add_row(key, "-" if value in ("", None) else str(value))
     console.print(table)

@@ -21,17 +21,21 @@ fi
 "$VENV_DIR/bin/pip" install -e "$REPO_DIR" >/dev/null
 
 HOME="$TEST_HOME" bash -lc "
+set -e
 export CODEX_PM_HOME=\"\$HOME/.local/share/codex-profile-manager\"
 source '$REPO_DIR/codex-profile-manager.sh'
 codex-accounts add primary >/dev/null
 codex-accounts add backup >/dev/null
 codex-accounts profile backup review >/dev/null
+codex-accounts set-renewal backup 2030-01-15 --cycle monthly >/dev/null
 mkdir -p \"\$HOME/project\"
 cd \"\$HOME/project\"
 codex -u primary exec 'hello' >/dev/null 2>/dev/null || true
 codex-projects handoff --to-account backup --reason 'smoke test' >/dev/null
-codex -u backup exec 'resume' >/dev/null 2>/dev/null || true
+codex-accounts info backup --json >/dev/null
 codex-projects history >/dev/null
+'$VENV_DIR/bin/python' -m codex_profile_manager replicate export \"\$HOME/bundle.tgz\" --include-projects >/dev/null
+test -f \"\$HOME/bundle.tgz\"
 test -f \"\$HOME/.local/share/codex-profile-manager/projects/\$(printf %s \"\$HOME/project\" | sha256sum | cut -c1-16)/activity.jsonl\"
 "
 

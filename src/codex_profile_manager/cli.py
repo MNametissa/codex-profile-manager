@@ -11,20 +11,27 @@ from .core import (
     accounts_payload,
     add_account,
     account_exists,
+    codex_version,
     bootstrap_account,
     collect_account_info,
     create_handoff,
     default_account_file,
     ensure_state_dirs,
+    export_snapshot,
+    import_snapshot,
     list_accounts,
     login_account,
     logout_account,
+    npm_version,
     project_history_payload,
     project_status_payload,
     read_default_account,
     remove_account,
     rename_account,
+    run_npm_install_codex,
+    run_npm_upgrade_codex,
     set_default_profile,
+    set_account_billing,
     tracked_projects_payload,
     validate_name,
     write_default_account,
@@ -35,9 +42,13 @@ from .render import emit_json, render_account_info, render_accounts_table, rende
 app = typer.Typer(rich_markup_mode="rich", no_args_is_help=True, help="Manage Codex multi-account workflows.")
 accounts_app = typer.Typer(rich_markup_mode="rich", no_args_is_help=True, help="Manage isolated Codex accounts.")
 projects_app = typer.Typer(rich_markup_mode="rich", no_args_is_help=True, help="Manage shared project continuity.")
+replicate_app = typer.Typer(rich_markup_mode="rich", no_args_is_help=True, help="Export and import portable Codex manager bundles.")
+system_app = typer.Typer(rich_markup_mode="rich", no_args_is_help=True, help="Install and upgrade Codex via npm.")
 
 app.add_typer(accounts_app, name="accounts")
 app.add_typer(projects_app, name="projects")
+app.add_typer(replicate_app, name="replicate")
+app.add_typer(system_app, name="system")
 
 
 @app.callback()
@@ -149,6 +160,22 @@ def accounts_next(json_output: bool = typer.Option(False, "--json", help="Emit J
     render_next(payload)
 
 
+@accounts_app.command("set-renewal")
+def accounts_set_renewal(
+    account: str,
+    next_payment_at: str,
+    cycle: str = typer.Option("monthly", "--cycle"),
+) -> None:
+    set_account_billing(account, next_payment_at, cycle)
+    typer.echo(f"Renewal metadata for '{account}' set to {next_payment_at} ({cycle})")
+
+
+@accounts_app.command("clear-renewal")
+def accounts_clear_renewal(account: str) -> None:
+    set_account_billing(account, "", "", source="")
+    typer.echo(f"Renewal metadata for '{account}' cleared")
+
+
 @accounts_app.command("path")
 def accounts_path() -> None:
     print(default_account_file().parent)
@@ -207,6 +234,52 @@ def projects_list(json_output: bool = typer.Option(False, "--json", help="Emit J
         emit_json(payload)
         return
     render_projects(payload)
+
+
+@replicate_app.command("export")
+def replicate_export(
+    output: str,
+    accounts: list[str] = typer.Option(None, "--account"),
+    include_auth: bool = typer.Option(False, "--include-auth", help="Include auth.json in exported accounts."),
+    include_projects: bool = typer.Option(False, "--include-projects", help="Include project ledgers in the bundle."),
+) -> None:
+    archive = export_snapshot(output, accounts or None, include_auth, include_projects)
+    typer.echo(f"Snapshot exported to {archive}")
+
+
+@replicate_app.command("import")
+def replicate_import(
+    archive: str,
+    overwrite: bool = typer.Option(False, "--overwrite", help="Overwrite existing accounts when names collide."),
+    include_projects: bool = typer.Option(True, "--include-projects/--skip-projects", help="Import bundled project ledgers."),
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON instead of text."),
+) -> None:
+    payload = import_snapshot(archive, overwrite, include_projects)
+    if json_output:
+        emit_json(payload)
+        return
+    typer.echo(f"Imported accounts: {', '.join(payload['imported_accounts']) or '(none)'}")
+    typer.echo(f"Imported projects: {'yes' if payload['imported_projects'] else 'no'}")
+
+
+@system_app.command("status")
+def system_status(json_output: bool = typer.Option(False, "--json", help="Emit JSON instead of text.")) -> None:
+    payload = {"codex_version": codex_version(), "npm_version": npm_version()}
+    if json_output:
+        emit_json(payload)
+        return
+    typer.echo(f"Codex version: {payload['codex_version'] or 'not installed'}")
+    typer.echo(f"npm version: {payload['npm_version'] or 'not found'}")
+
+
+@system_app.command("install-codex")
+def system_install_codex(version: str = typer.Option("latest", "--version")) -> None:
+    raise typer.Exit(run_npm_install_codex(version))
+
+
+@system_app.command("upgrade-codex")
+def system_upgrade_codex(version: str = typer.Option("latest", "--version")) -> None:
+    raise typer.Exit(run_npm_upgrade_codex(version))
 
 
 def main() -> None:
