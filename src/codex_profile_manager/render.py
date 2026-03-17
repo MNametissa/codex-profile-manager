@@ -4,6 +4,7 @@ import json
 from typing import Any
 
 from rich.console import Console
+from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table
 
@@ -126,3 +127,19 @@ def render_projects(items: list[dict[str, Any]]) -> None:
     for item in items:
         table.add_row(item["project_id"], item["project_root"] or "-", item["ledger"])
     console.print(table)
+
+
+def render_docs_index(topics: list[dict[str, str]]) -> None:
+    table = Table(title="Documentation Topics")
+    table.add_column("Topic")
+    table.add_column("Description")
+    table.add_column("Path")
+    for item in topics:
+        table.add_row(item["topic"], item["title"], item["path"])
+    console.print(table)
+    console.print("Read a guide with `codexpm docs <topic>`.")
+
+
+def render_doc(payload: dict[str, Any]) -> None:
+    console.print(Panel(payload["path"], title=f"Docs: {payload['topic']}"))
+    console.print(Markdown(payload["content"]))

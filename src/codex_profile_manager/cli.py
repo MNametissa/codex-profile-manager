@@ -15,7 +15,9 @@ from .core import (
     bootstrap_account,
     collect_account_info,
     create_handoff,
+    doc_payload,
     default_account_file,
+    docs_topics_payload,
     ensure_state_dirs,
     export_snapshot,
     import_snapshot,
@@ -36,7 +38,17 @@ from .core import (
     validate_name,
     write_default_account,
 )
-from .render import emit_json, render_account_info, render_accounts_table, render_next, render_project_history, render_project_status, render_projects
+from .render import (
+    emit_json,
+    render_account_info,
+    render_accounts_table,
+    render_doc,
+    render_docs_index,
+    render_next,
+    render_project_history,
+    render_project_status,
+    render_projects,
+)
 
 
 app = typer.Typer(rich_markup_mode="rich", no_args_is_help=True, help="Manage Codex multi-account workflows.")
@@ -59,6 +71,30 @@ def app_callback() -> None:
 @app.command("version")
 def version() -> None:
     print(__version__)
+
+
+@app.command("docs")
+def docs(
+    topic: Optional[str] = typer.Argument(None),
+    path_only: bool = typer.Option(False, "--path", help="Print only the documentation file path."),
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON instead of rich text."),
+) -> None:
+    if topic is None:
+        payload = {"topics": docs_topics_payload()}
+        if json_output:
+            emit_json(payload)
+            return
+        render_docs_index(payload["topics"])
+        return
+
+    payload = doc_payload(topic)
+    if path_only:
+        print(payload["path"])
+        return
+    if json_output:
+        emit_json(payload)
+        return
+    render_doc(payload)
 
 
 @accounts_app.command("list")

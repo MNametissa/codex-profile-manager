@@ -24,6 +24,9 @@ source ~/.bashrc   # ou ~/.zshrc
 
 ## Documentation
 
+- `codexpm docs`
+- `codexpm docs getting-started`
+- `codexpm docs replication --path`
 - [Documentation Index](./docs/README.md)
 - [Getting Started](./docs/getting-started.md)
 - [Accounts Guide](./docs/accounts.md)

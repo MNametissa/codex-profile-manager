@@ -13,8 +13,24 @@ from pathlib import Path
 from typing import Any
 
 
+DOC_TOPICS = {
+    "index": ("Documentation index", "docs/README.md"),
+    "readme": ("Project overview", "README.md"),
+    "getting-started": ("Install and first-run workflow", "docs/getting-started.md"),
+    "accounts": ("Managed accounts and billing metadata", "docs/accounts.md"),
+    "projects": ("Shared project ledger and handoffs", "docs/projects.md"),
+    "replication": ("Replication, install, and operations", "docs/replication-and-operations.md"),
+    "architecture": ("Shell, Typer, and storage model", "docs/architecture.md"),
+    "spec": ("Initial product continuity spec", "docs/specs/continuity-multi-profile-spec.md"),
+}
+
+
 def now_utc() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def project_root() -> Path:
+    return Path(__file__).resolve().parents[2]
 
 
 def state_root() -> Path:
@@ -36,6 +52,40 @@ def default_account_file() -> Path:
 def ensure_state_dirs() -> None:
     accounts_dir().mkdir(parents=True, exist_ok=True)
     projects_dir().mkdir(parents=True, exist_ok=True)
+
+
+def docs_topics_payload() -> list[dict[str, str]]:
+    root = project_root()
+    payload: list[dict[str, str]] = []
+    for topic, (title, relative_path) in DOC_TOPICS.items():
+        payload.append(
+            {
+                "topic": topic,
+                "title": title,
+                "path": str((root / relative_path).resolve()),
+            }
+        )
+    return payload
+
+
+def doc_payload(topic: str | None = None) -> dict[str, Any]:
+    selected_topic = (topic or "index").strip().lower()
+    if selected_topic not in DOC_TOPICS:
+        available = ", ".join(sorted(DOC_TOPICS))
+        raise ValueError(f"Unknown docs topic '{topic}'. Available topics: {available}")
+
+    title, relative_path = DOC_TOPICS[selected_topic]
+    path = (project_root() / relative_path).resolve()
+    if not path.exists():
+        raise FileNotFoundError(f"Documentation file not found: {path}")
+
+    return {
+        "topic": selected_topic,
+        "title": title,
+        "path": str(path),
+        "content": path.read_text(),
+        "topics": docs_topics_payload(),
+    }
 
 
 def validate_name(value: str) -> str:

@@ -11,6 +11,16 @@ Cette documentation couvre l'usage quotidien, l'exploitation sur VPS, et l'archi
 - [Architecture](./architecture.md)
 - [Initial Product Spec](./specs/continuity-multi-profile-spec.md)
 
+## CLI Access
+
+You can browse this documentation from the terminal:
+
+```bash
+codexpm docs
+codexpm docs accounts
+codexpm docs architecture --path
+```
+
 ## Recommended Reading Order
 
 1. `getting-started.md`
