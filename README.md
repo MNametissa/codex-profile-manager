@@ -75,6 +75,12 @@ codex-projects handoff --to-account backup --reason "rate limit"
 - branches de feature: `feature/<scope>-<short-name>`
 - commits: Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`)
 
+## Development
+
+```bash
+bash scripts/smoke-test.sh
+```
+
 ## Notes
 
 - Le ledger projet est la source de verite pour la continuite inter-comptes.
