@@ -12,6 +12,14 @@ cmd_projects_status() {
     echo "Project id: $(project_id_for_root "$root")"
     echo "Ledger: $dir"
 
+    local lock_file
+    lock_file="$(project_lock_file "$root")"
+    if [[ -f "$lock_file" ]]; then
+        echo ""
+        echo "Active lock:"
+        cat "$lock_file"
+    fi
+
     local last_event
     last_event="$(project_last_event "$root")"
     if [[ -n "$last_event" ]]; then

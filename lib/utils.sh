@@ -198,6 +198,11 @@ project_dir() {
     echo "$CODEX_PM_PROJECTS_DIR/$(project_id_for_root "$root")"
 }
 
+project_lock_file() {
+    local root="$1"
+    echo "$(project_dir "$root")/active.lock"
+}
+
 ensure_project_ledger() {
     local root="$1"
     local dir
@@ -380,4 +385,76 @@ project_last_handoff() {
     handoff_file="$(project_dir "$root")/handoffs.jsonl"
     [[ -f "$handoff_file" ]] || return 0
     tail -1 "$handoff_file"
+}
+
+project_latest_handoff_note_for_account() {
+    local root="$1"
+    local account="$2"
+    local handoff_file
+    handoff_file="$(project_dir "$root")/handoffs.jsonl"
+    [[ -f "$handoff_file" ]] || return 0
+
+    if command -v jq >/dev/null 2>&1; then
+        jq -r --arg account "$account" '
+            select(.to_account_id == $account)
+            | .note_file // empty
+        ' "$handoff_file" 2>/dev/null | tail -1
+    fi
+}
+
+project_last_account() {
+    local root="$1"
+    local activity_file
+    activity_file="$(project_dir "$root")/activity.jsonl"
+    [[ -f "$activity_file" ]] || return 0
+
+    if command -v jq >/dev/null 2>&1; then
+        jq -r '.account_id // empty' "$activity_file" 2>/dev/null | tail -1
+    fi
+}
+
+acquire_project_lock() {
+    local root="$1"
+    local account="$2"
+    local session_id="$3"
+    local lock_file
+
+    ensure_project_ledger "$root"
+    lock_file="$(project_lock_file "$root")"
+
+    if [[ -f "$lock_file" ]]; then
+        local locked_pid locked_account locked_session
+        locked_pid="$(grep '^pid=' "$lock_file" | cut -d= -f2)"
+        locked_account="$(grep '^account=' "$lock_file" | cut -d= -f2)"
+        locked_session="$(grep '^session_id=' "$lock_file" | cut -d= -f2)"
+
+        if [[ -n "$locked_pid" ]] && kill -0 "$locked_pid" 2>/dev/null; then
+            echo "Project is already locked by account '$locked_account' (session $locked_session, pid $locked_pid)." >&2
+            echo "Finish that session first, or set CODEX_PM_IGNORE_LOCK=1 to bypass." >&2
+            [[ "$CODEX_PM_IGNORE_LOCK" == "1" ]] && return 0
+            return 1
+        fi
+    fi
+
+    cat > "$lock_file" << EOF
+pid=$$
+account=$account
+session_id=$session_id
+timestamp=$(now_utc)
+cwd=$(pwd -P)
+EOF
+}
+
+release_project_lock() {
+    local root="$1"
+    local session_id="$2"
+    local lock_file
+    lock_file="$(project_lock_file "$root")"
+    [[ -f "$lock_file" ]] || return 0
+
+    local locked_session
+    locked_session="$(grep '^session_id=' "$lock_file" | cut -d= -f2)"
+    if [[ "$locked_session" == "$session_id" ]]; then
+        rm -f "$lock_file"
+    fi
 }

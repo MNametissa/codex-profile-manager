@@ -79,6 +79,20 @@ codex() {
     if [[ "$track_project" == true ]]; then
         project_root="$(resolve_project_root "$(pwd)")"
         session_id="$(new_session_id)"
+        acquire_project_lock "$project_root" "$account" "$session_id" || return 1
+
+        local last_account
+        last_account="$(project_last_account "$project_root")"
+        if [[ -n "$last_account" && "$last_account" != "$account" ]]; then
+            echo "Resume hint: last tracked activity on this project used account '$last_account'."
+        fi
+
+        local handoff_note
+        handoff_note="$(project_latest_handoff_note_for_account "$project_root" "$account")"
+        if [[ -n "$handoff_note" ]]; then
+            echo "Resume hint: handoff note available at $handoff_note"
+        fi
+
         log_project_event "$project_root" "$account" "$active_profile" "$session_id" "session_started" "codex ${codex_args[*]}"
     fi
 
@@ -87,6 +101,7 @@ codex() {
 
     if [[ "$track_project" == true ]]; then
         log_project_event "$project_root" "$account" "$active_profile" "$session_id" "session_exited" "codex ${codex_args[*]}" "$exit_code"
+        release_project_lock "$project_root" "$session_id"
     fi
 
     return "$exit_code"
