@@ -1,58 +1,79 @@
 #!/bin/bash
 
 CODEX_PM_DIR="${CODEX_PM_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+CODEX_PM_HOME="${CODEX_PM_HOME:-$HOME/.local/share/codex-profile-manager}"
 
-source "$CODEX_PM_DIR/lib/config.sh"
-source "$CODEX_PM_DIR/lib/utils.sh"
-source "$CODEX_PM_DIR/lib/codex-wrapper.sh"
-source "$CODEX_PM_DIR/lib/cmd-accounts.sh"
-source "$CODEX_PM_DIR/lib/cmd-projects.sh"
-source "$CODEX_PM_DIR/lib/cmd-help.sh"
-source "$CODEX_PM_DIR/lib/completions.sh"
+_codex_pm_python() {
+    if [[ -x "$CODEX_PM_HOME/.venv/bin/python" ]]; then
+        printf '%s' "$CODEX_PM_HOME/.venv/bin/python"
+    elif [[ -x "$CODEX_PM_DIR/.venv/bin/python" ]]; then
+        printf '%s' "$CODEX_PM_DIR/.venv/bin/python"
+    else
+        command -v python3
+    fi
+}
+
+_codex_pm_invoke() {
+    local py_bin
+    py_bin="$(_codex_pm_python)"
+    PYTHONPATH="$CODEX_PM_DIR/src${PYTHONPATH:+:$PYTHONPATH}" \
+    CODEX_PM_HOME="$CODEX_PM_HOME" \
+    "$py_bin" -m codex_profile_manager "$@"
+}
+
+_codex_pm_run_wrapper() {
+    local account="$1"
+    shift
+    local py_bin
+    py_bin="$(_codex_pm_python)"
+    PYTHONPATH="$CODEX_PM_DIR/src${PYTHONPATH:+:$PYTHONPATH}" \
+    CODEX_PM_HOME="$CODEX_PM_HOME" \
+    "$py_bin" -m codex_profile_manager.runner --account "$account" -- "$@"
+}
+
+codex() {
+    local account
+    account="$(CODEX_PM_HOME="$CODEX_PM_HOME" PYTHONPATH="$CODEX_PM_DIR/src${PYTHONPATH:+:$PYTHONPATH}" "$(_codex_pm_python)" - <<'PY'
+from codex_profile_manager.core import read_default_account
+print(read_default_account())
+PY
+)"
+
+    local -a codex_args=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -u|--user|--account)
+                if [[ -z "$2" || "$2" == -* ]]; then
+                    echo "Error: $1 requires an account name" >&2
+                    return 1
+                fi
+                account="$2"
+                shift 2
+                ;;
+            --account=*)
+                account="${1#*=}"
+                shift
+                ;;
+            *)
+                codex_args+=("$1")
+                shift
+                ;;
+        esac
+    done
+
+    _codex_pm_run_wrapper "$account" "${codex_args[@]}"
+}
 
 codex-accounts() {
-    local cmd="${1:-list}"
-    [[ $# -gt 0 ]] && shift
-
-    case "$cmd" in
-        list|ls)         cmd_accounts_list "$@" ;;
-        add)             cmd_accounts_add "$@" ;;
-        bootstrap)       cmd_accounts_bootstrap "$@" ;;
-        remove|rm|delete) cmd_accounts_remove "$@" ;;
-        rename|mv)       cmd_accounts_rename "$@" ;;
-        default)         cmd_accounts_default "$@" ;;
-        profile)         cmd_accounts_profile "$@" ;;
-        info|status)     cmd_accounts_info "$@" ;;
-        login)           cmd_accounts_login "$@" ;;
-        logout)          cmd_accounts_logout "$@" ;;
-        next)            cmd_accounts_next "$@" ;;
-        path)            cmd_accounts_path ;;
-        self-uninstall)  cmd_accounts_self_uninstall ;;
-        help|--help|-h)  cmd_accounts_help ;;
-        *)
-            echo "Unknown codex-accounts command: $cmd" >&2
-            cmd_accounts_help >&2
-            return 1
-            ;;
-    esac
+    _codex_pm_invoke accounts "$@"
 }
 
 codex-projects() {
-    local cmd="${1:-status}"
-    [[ $# -gt 0 ]] && shift
-
-    case "$cmd" in
-        status)          cmd_projects_status "$@" ;;
-        history)         cmd_projects_history "$@" ;;
-        handoff)         cmd_projects_handoff "$@" ;;
-        list)            cmd_projects_list "$@" ;;
-        help|--help|-h)  cmd_projects_help ;;
-        *)
-            echo "Unknown codex-projects command: $cmd" >&2
-            cmd_projects_help >&2
-            return 1
-            ;;
-    esac
+    _codex_pm_invoke projects "$@"
 }
 
-export -f codex codex-accounts codex-projects
+codexpm() {
+    _codex_pm_invoke "$@"
+}
+
+export -f codex codex-accounts codex-projects codexpm
