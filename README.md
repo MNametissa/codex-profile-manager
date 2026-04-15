@@ -1,157 +1,125 @@
 # Codex Profile Manager
 
-Codex Profile Manager ajoute une couche multi-comptes a `codex` en utilisant `CODEX_HOME` pour isoler proprement chaque compte sur la meme machine. Les commandes de gestion sont implementees avec [Typer](https://typer.tiangolo.com/) et le rendu terminal utilise Rich.
-
-## Features
-
-- plusieurs comptes Codex nommes (`perso`, `client-a`, `backup`)
-- profil de configuration Codex par defaut par compte
-- wrapper `codex -u <account>` sans casser les commandes natives
-- CLI Typer avec rendu tableau et sorties `--json`
-- control strip colore avant lancement pour renewal et pression d'usage
-- ledger transverse par projet pour conserver une chronologie commune
-- handoff entre comptes avec note de reprise
-- suivi local des etats d'auth et des signaux de limite d'usage
-- snapshots export/import pour repliquer l'installation managerisee sur d'autres VPS
-- installation et upgrade de `@openai/codex` via `npm`
-- installateur shell qui source automatiquement le wrapper
+Manage multiple OpenAI Codex accounts on a single machine. Each account has isolated `CODEX_HOME`, credentials, settings, and usage tracking.
 
 ## Install
 
 ```bash
 bash install.sh
-source ~/.bashrc   # ou ~/.zshrc
+source ~/.bashrc  # or ~/.zshrc
 ```
 
-After reloading your shell, the wrapper exposes shell functions and completion for:
+The installer:
+- Creates a Python virtual environment
+- Installs the CLI and wrapper
+- Imports existing `~/.codex` as the "default" account (optional)
+- Adds shell functions for `codex`, `codex-accounts`, `codex-projects`, and `codexpm`
 
-- `codex`
-- `codex-accounts`
-- `codex-projects`
-- `codexpm`
-
-## Documentation
-
-- `codexpm docs`
-- `codexpm docs getting-started`
-- `codexpm docs replication --path`
-- [Documentation Index](./docs/README.md)
-- [Getting Started](./docs/getting-started.md)
-- [Accounts Guide](./docs/accounts.md)
-- [Projects Guide](./docs/projects.md)
-- [Replication and Operations](./docs/replication-and-operations.md)
-- [Architecture](./docs/architecture.md)
-
-## Quickstart
+## Quick Start
 
 ```bash
-codex-accounts --help
-codex-accounts help
-codex-accounts list
-codex-accounts info backup --json
-codex-accounts add backup
-codex-accounts login backup
-codex-accounts default backup
-codex-accounts set-renewal backup 2026-04-12 --cycle monthly
+# Create an account
+codex-accounts add work
 
-codex -u backup
-codex -u backup -p review
+# Login to the account
+codex-accounts login work
 
-codex-projects status
-codex-projects history
+# Use the account
+codex -u work
+
+# Set as default
+codex-accounts default work
+codex  # uses work account
+```
+
+## Account Management
+
+```bash
+codex-accounts list                  # List all accounts
+codex-accounts add <name>            # Create account
+codex-accounts bootstrap [name]      # Import ~/.codex as account
+codex-accounts remove <name>         # Remove account
+codex-accounts rename <old> <new>    # Rename account
+codex-accounts default [name]        # Get/set default
+codex-accounts info [account]        # Show details
+codex-accounts info [account] --json # JSON output
+codex-accounts login [account]       # Authenticate
+codex-accounts logout [account]      # Remove credentials
+codex-accounts next                  # Switch to next available account
+```
+
+## Billing/Renewal Tracking
+
+```bash
+codex-accounts set-renewal work 2024-05-01 --cycle monthly
+codex-accounts clear-renewal work
+```
+
+The wrapper shows a banner before launch with renewal date and usage status.
+
+## Project Ledger
+
+Track activity across accounts per project:
+
+```bash
+codex-projects status [path]         # Show project info
+codex-projects history [path]        # Show activity log
+codex-projects list                  # List tracked projects
 codex-projects handoff --to-account backup --reason "rate limit"
-
-codexpm replicate export ~/codex-bundle.tgz --include-auth --include-projects
-codexpm system install-codex
-codexpm system upgrade-codex
 ```
 
-## Commands
+Handoff creates a note with git status, recent history, and resume instructions.
 
-### Accounts
+## Replication
 
-- `codex-accounts list`
-- `codex-accounts add <name>`
-- `codex-accounts bootstrap [name]`
-- `codex-accounts remove <name>`
-- `codex-accounts rename <old> <new>`
-- `codex-accounts default [name]`
-- `codex-accounts profile <account> [config-profile]`
-- `codex-accounts info [account]`
-- `codex-accounts info [account] --json`
-- `codex-accounts login [account] [codex-login-flags...]`
-- `codex-accounts logout [account]`
-- `codex-accounts next`
-- `codex-accounts set-renewal <account> <YYYY-MM-DD> [--cycle monthly|annual]`
-- `codex-accounts clear-renewal <account>`
-
-### Projects
-
-- `codex-projects status [path]`
-- `codex-projects status [path] --json`
-- `codex-projects history [path] [--limit N]`
-- `codex-projects handoff --to-account <name> [--to-profile <profile>] [--reason <text>] [path]`
-- `codex-projects list`
-
-### Replication
-
-- `codexpm replicate export <archive.tgz> [--account NAME] [--include-auth] [--include-projects]`
-- `codexpm replicate import <archive.tgz> [--overwrite]`
-
-### System
-
-- `codexpm system status`
-- `codexpm system install-codex [--version latest]`
-- `codexpm system upgrade-codex [--version latest]`
-
-## Replicate To Another VPS
-
-Source VPS:
+Export accounts to another machine:
 
 ```bash
+# Source machine
 codexpm replicate export ~/codex-bundle.tgz --include-auth --include-projects
-```
 
-Target VPS:
-
-```bash
-git clone <your-repo> codex-profile-manager
-cd codex-profile-manager
-bash install.sh
-source ~/.bashrc
+# Target machine
+git clone <repo> codex-profile-manager && cd codex-profile-manager
+bash install.sh && source ~/.bashrc
 codexpm system install-codex
 codexpm replicate import ~/codex-bundle.tgz --overwrite
 ```
 
-This restores managed accounts, isolated `CODEX_HOME` trees, config profiles, MCP settings, skills, agents, memories, and optionally project ledgers.
+## System Management
+
+```bash
+codexpm system status                # Show npm/codex versions
+codexpm system install-codex         # Install @openai/codex globally
+codexpm system upgrade-codex         # Upgrade to latest
+```
+
+## Documentation
+
+```bash
+codexpm docs                         # List topics
+codexpm docs getting-started         # View topic
+codexpm docs replication --path      # Show file path
+```
 
 ## Data Layout
 
-```text
+```
 ~/.local/share/codex-profile-manager/
-  .venv/                        # runtime Python local
-  src/codex_profile_manager/    # app Typer
-  accounts/<name>/home/         # CODEX_HOME isole pour chaque compte
-  accounts/<name>/meta.json     # metadonnees du compte
-  projects/<project-id>/        # ledger transverse du projet
-  codex-profile-manager.sh      # wrapper source par le shell
+  .venv/                          # Python environment
+  src/codex_profile_manager/      # Typer CLI app
+  accounts/<name>/home/           # Isolated CODEX_HOME per account
+  accounts/<name>/meta.json       # Account metadata
+  projects/<project-id>/          # Cross-account project ledger
+  codex-profile-manager.sh        # Shell wrapper
 ```
 
-## Workflow Git
+## Uninstall
 
-- branchement par defaut: trunk-based
-- branches de feature: `feature/<scope>-<short-name>`
-- commits: Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`)
+Remove the source line from `~/.bashrc` or `~/.zshrc` and delete `~/.local/share/codex-profile-manager/`.
 
-## Development
+## Requirements
 
-```bash
-bash scripts/smoke-test.sh
-```
-
-## Notes
-
-- Le ledger projet est la source de verite pour la continuite inter-comptes.
-- L'historique natif de Codex reste dans chaque `CODEX_HOME`.
-- Les signaux de quota sont exposes comme estimations locales, pas comme verite de facturation.
-- La date de prochain paiement peut etre stockee par compte et affichee par le manager, mais la status line native de Codex ne semble exposer que des champs internes predetermines. Le wrapper affiche donc un banner de renouvellement avant le lancement, plutot qu'une injection non fiable dans la status line native.
+- Linux or macOS
+- Bash or Zsh
+- Python 3.10+
+- Node.js/npm (for @openai/codex)
