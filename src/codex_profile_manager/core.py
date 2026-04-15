@@ -274,10 +274,24 @@ def rate_limit_state(name: str) -> dict[str, Any]:
         return {"state": "unknown", "used_percent": None, "resets_at": None, "plan_type": None}
 
     rate_limits = last_token_count.get("payload", {}).get("rate_limits", {})
+    if not isinstance(rate_limits, dict):
+        return {"state": "unknown", "used_percent": None, "resets_at": None, "plan_type": None}
+
     primary = rate_limits.get("primary") or {}
+    if not isinstance(primary, dict):
+        primary = {}
+
     used = primary.get("used_percent")
     reset = primary.get("resets_at")
     plan_type = rate_limits.get("plan_type")
+
+    # Normalize types
+    if not isinstance(used, (int, float)):
+        used = None
+    if reset is not None and not isinstance(reset, str):
+        reset = str(reset) if reset else None
+    if plan_type is not None and not isinstance(plan_type, str):
+        plan_type = str(plan_type) if plan_type else None
 
     state = "available"
     if isinstance(used, (int, float)) and used >= 99:
